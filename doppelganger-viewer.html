@@ -1,0 +1,450 @@
+<!--
+# This has been built as a single-page client-side website to view Patrick Amadon's full Dopplegänger collection
+# This can be run from a user's computer and does not require a web server as it is all HTML/CSS/JS
+# The code does currently require Ethers.js but it would be good to revisit a fully inclusive method for API calls
+# Each user will need their own Alchemy API Key which can be obtained for free from www.alchemy.com
+# Only the original Dopplegänger contract address has been validated and it is unknown of other collections will work as well
+
+# Author: jestemzero with assistance from ChatGPT, Gemini and Claude LLMs
+# xTwiiter: @jestemzero
+# Warpcast: @jestemzero
+# Discord: @jestemzero
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doppelgänger Images</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #f8f8f8;
+    }
+    h1 {
+      margin-top: 20px;
+    }
+    .input-container {
+      width: 100%;
+      max-width: 800px;
+      margin: 20px 0;
+      padding: 20px;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .input-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+	.addressNote {
+	  font-size:12px;
+	  color:#666;
+	  font-style:italic;
+	}
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    #urisList {
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+      padding: 20px;
+      width: 100%;
+      max-width: 1200px;
+    }
+    .card {
+      background-color: white;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .card:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+    }
+    .card img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .card p {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #555;
+    }
+    #loading {
+      margin-top: 20px;
+      color: #555;
+      font-style: italic;
+      display: none;
+    }
+    .progress {
+      margin-top: 10px;
+      width: 200px;
+      height: 20px;
+      background-color: #e0e0e0;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background-color: #4CAF50;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    /* Modal styles */
+	.modal-loading {
+	  display: none;
+	  position: absolute;
+	  top: 50%;
+	  left: 50%;
+	  transform: translate(-50%, -50%);
+	  text-align: center;
+	  color: white;
+	}
+
+	.modal-loading .progress {
+	  width: 200px;
+	  margin: 10px auto;
+	}
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.85);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      position: relative;
+      max-width: 90%;
+      max-height: 90vh;
+    }
+    .modal-content img {
+      max-width: 100%;
+      max-height: 90vh;
+      display: block;
+      border: 2px solid white;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <h1>Doppelgänger Viewer</h1>
+  
+  <div class="input-container">
+    <div class="input-group">
+      <label for="contractAddress">Contract Address: <span class="addressNote">(0xdb7f99605fd3cc23067c3d8c1ba637109f083dc2 = Patrick Amadon's Doppelgänger)</span></label>
+      <input type="text" id="contractAddress" placeholder="Enter Ethereum contract address">
+    </div>
+    <div class="input-group">
+      <label for="apiKey">Alchemy API Key:</label>
+      <input type="text" id="apiKey" placeholder="Enter Alchemy API Key">
+    </div>
+    <button id="loadButton">Load Images</button>
+  </div>
+
+  <div id="loading">
+    <p>Loading images... <span id="progress-text">0/0</span></p>
+    <div class="progress">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+  </div>
+  
+  <ul id="urisList"></ul>
+  
+  <!-- Modal for full-size image display -->
+	<div id="imageModal" class="modal">
+	  <div class="modal-content">
+		<div id="modalLoading" class="modal-loading">
+		  <p>Loading image...</p>
+		  <div class="progress">
+			<div class="progress-bar" id="modal-progress-bar"></div>
+		  </div>
+		</div>
+		<img id="modalImage" src="" alt="Full-size image">
+	  </div>
+	</div>
+
+  <script>
+    // Default values (can be empty strings if not needed)
+    const DEFAULT_ALCHEMY_API_KEY = ""; // This can be user's hardcoded API KEY
+    const DEFAULT_CONTRACT_ADDRESS = "0xdb7f99605fd3cc23067c3d8c1ba637109f083dc2"; 
+    const IPFS_GATEWAY = "https://ipfs.io/ipfs/";
+
+    // Set default values in input fields
+    document.getElementById("contractAddress").value = DEFAULT_CONTRACT_ADDRESS;
+    document.getElementById("apiKey").value = DEFAULT_ALCHEMY_API_KEY;
+    
+    // Initialize modal elements
+    const modal = document.getElementById("imageModal");
+    const modalImage = document.getElementById("modalImage");
+    
+    // Close modal when clicking outside image or on close button
+    modal.addEventListener("click", function(event) {
+      if (event.target === modal) {
+        closeModal();
+      }
+    });
+    
+    
+	function openModal(imageUrl, imageName) {
+	  // Show modal with loading indicator
+	  modal.style.display = "flex";
+	  document.body.style.overflow = "hidden"; // Prevent scrolling behind modal
+	  
+	  // Show loading indicator and hide image
+	  const modalLoading = document.getElementById("modalLoading");
+	  modalLoading.style.display = "block";
+	  modalImage.style.display = "none";
+	  
+	  // Create a new image object to preload
+	  const img = new Image();
+	  img.onload = function() {
+		// Hide loading indicator and show image
+		modalLoading.style.display = "none";
+		modalImage.style.display = "block";
+		
+		// Set the image source and alt after it's loaded
+		modalImage.src = imageUrl;
+		modalImage.alt = imageName;
+	  };
+	  
+	  // For GIF or other animations that might not trigger onload properly
+	  img.onerror = function() {
+		modalLoading.style.display = "none";
+		modalImage.style.display = "block";
+		modalImage.src = imageUrl;
+		modalImage.alt = imageName;
+	  };
+	  
+	  // Start loading the image
+	  img.src = imageUrl;
+	}
+    
+	function closeModal() {
+	  modal.style.display = "none";
+	  document.body.style.overflow = "auto"; // Restore scrolling
+	  
+	  // Reset modal image and loading state
+	  modalImage.src = "";
+	  document.getElementById("modalLoading").style.display = "none";
+	  document.getElementById("modal-progress-bar").style.width = "0%";
+	}
+
+    async function getDoppelgangerURIs(contractAddress, apiKey) {
+      const provider = new ethers.providers.JsonRpcProvider(`https://eth-mainnet.alchemyapi.io/v2/${apiKey}`);
+      const abi = ["function viewDoppelgangerOptions() external view returns (string[])"];
+      const contract = new ethers.Contract(contractAddress, abi, provider);
+
+      try {
+        const uris = await contract.viewDoppelgangerOptions();
+        return uris;
+      } catch (error) {
+        console.error("Error retrieving URIs:", error);
+        return null;
+      }
+    }
+
+    function sanitizeUrl(url) {
+      return url.replace(/[\u201C\u201D]/g, ""); // Remove fancy curly quotes if present
+    }
+
+    function resolveIPFS(uri) {
+      if (uri.startsWith("ipfs://")) {
+        return `${IPFS_GATEWAY}${uri.slice(7)}`;
+      }
+      return uri; // If it's already an Arweave or HTTP link, return as-is
+    }
+
+    async function fetchImageFromMetadata(metadataUri) {
+      try {
+        const sanitizedUri = sanitizeUrl(metadataUri); // Clean up the URL
+        const resolvedUri = resolveIPFS(sanitizedUri);
+        const response = await fetch(resolvedUri);
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch metadata from ${resolvedUri}`);
+        }
+
+        const metadata = await response.json();
+        return {
+          imageUrl: resolveIPFS(metadata.image), // Extract and resolve the image URI
+          name: metadata.name // Extract the name of the artwork
+        };
+
+      } catch (error) {
+        console.error("Error fetching image:", error);
+        return null;
+      }
+    }
+
+    function drawFirstFrame(imageUrl, canvas) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "Anonymous"; // Enable CORS to allow the canvas to work
+        img.src = imageUrl;
+        img.onload = () => {
+          const ctx = canvas.getContext("2d");
+          const scaleFactor = canvas.width / img.width;
+          const height = img.height * scaleFactor;
+          canvas.height = height;
+          ctx.drawImage(img, 0, 0, canvas.width, height);
+          resolve(canvas.toDataURL()); // Return the canvas data URL (first frame)
+        };
+        img.onerror = reject;
+      });
+    }
+
+    function updateProgress(loaded, total) {
+      const percent = Math.round((loaded / total) * 100);
+      document.getElementById('progress-bar').style.width = `${percent}%`;
+      document.getElementById('progress-text').textContent = `${loaded}/${total}`;
+    }
+
+    async function displayDoppelgangerURIs() {
+      // Get values from input fields
+      const contractAddress = document.getElementById("contractAddress").value.trim();
+      const apiKey = document.getElementById("apiKey").value.trim();
+      
+      // Validate inputs
+      if (!contractAddress) {
+        alert("Please enter a contract address");
+        return;
+      }
+      
+      if (!apiKey) {
+        alert("Please enter an Alchemy API key");
+        return;
+      }
+      
+      // Show loading indicator
+      const loadingElement = document.getElementById("loading");
+      loadingElement.style.display = "block";
+      
+      // Clear previous results
+      const urisList = document.getElementById("urisList");
+      urisList.innerHTML = "";
+      
+      // Get URIs from contract
+      const uris = await getDoppelgangerURIs(contractAddress, apiKey);
+      
+      if (!uris || uris.length === 0) {
+        urisList.innerHTML = "<p>No URIs found in the contract.</p>";
+        loadingElement.style.display = "none";
+        return;
+      }
+
+      const total = uris.length;
+      let loaded = 0;
+      updateProgress(loaded, total);
+
+      // Create an array to hold the card elements in correct order
+      const cards = new Array(total).fill(null);
+
+      // Process all images concurrently while maintaining original order
+      await Promise.all(uris.map(async (metadataUri, index) => {
+        try {
+          const result = await fetchImageFromMetadata(metadataUri);
+          
+          if (result && result.imageUrl) {
+            const listItem = document.createElement("li");
+            listItem.classList.add("card");
+
+            // Create a canvas for the first frame of the image
+            const canvas = document.createElement("canvas");
+            canvas.width = 200; // Set desired thumbnail width
+
+            const firstFrame = await drawFirstFrame(result.imageUrl, canvas);
+            const img = document.createElement("img");
+            img.src = firstFrame; // Use the canvas output as the thumbnail
+            img.alt = `Doppelganger ${index}`;
+            
+            // Open image in modal instead of new window
+            img.onclick = () => openModal(result.imageUrl, result.name);
+
+            const caption = document.createElement("p");
+            caption.textContent = `${result.name} (${index})`; // Show artwork name and index
+
+            listItem.appendChild(img);
+            listItem.appendChild(caption);
+            
+            // Store the card in the correct position in our array
+            cards[index] = listItem;
+          }
+        } catch (error) {
+          console.warn(`Error processing image ${index}:`, error);
+        }
+        
+        // Update progress counter
+        loaded++;
+        updateProgress(loaded, total);
+      }));
+
+      // After all images are processed, add the cards to the DOM in the correct order
+      cards.forEach(card => {
+        if (card) {
+          urisList.appendChild(card);
+        }
+      });
+
+      // Hide loading indicator
+      loadingElement.style.display = "none";
+    }
+
+    // Add event listener to the load button
+    document.getElementById("loadButton").addEventListener("click", displayDoppelgangerURIs);
+    
+    // Allow pressing Enter in input fields to trigger loading
+    document.getElementById("contractAddress").addEventListener("keypress", function(event) {
+      if (event.key === "Enter") {
+        displayDoppelgangerURIs();
+      }
+    });
+    
+    document.getElementById("apiKey").addEventListener("keypress", function(event) {
+      if (event.key === "Enter") {
+        displayDoppelgangerURIs();
+      }
+    });
+  </script>
+</body>
+</html>
