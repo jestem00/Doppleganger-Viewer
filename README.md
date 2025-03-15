@@ -7,6 +7,8 @@ The code does currently require Ethers.js but it would be good to revisit a full
 
 Each user will need their own Alchemy API Key which can be obtained for free from www.alchemy.com
 
+The API Key can be hard coded in the Javascript below or entered each time with the input box
+
 Only the original Dopplegänger contract address has been validated and it is unknown of other collections will work as well
 
 Author: jestemzero with assistance from ChatGPT, Gemini and Claude LLMs
